@@ -42,6 +42,11 @@ public class Main {
             long delay = ThreadLocalRandom.current().nextLong(0, 3001);
             TimeUnit.MILLISECONDS.sleep(delay);
             executor.submit(new Customer(i, facility, metrics, latch));
+
+            // Trigger payment kiosk congestion bonus scenario after 20th customer
+            if (i == 19) {
+                facility.disableKiosks();
+            }
         }
 
         // Wait for ALL customers to finish
@@ -56,3 +61,7 @@ public class Main {
         LaundryLogger.log("SYSTEM", "=== Simulation Complete ===");
     }
 }
+
+
+
+

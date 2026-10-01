@@ -26,12 +26,20 @@ public class LaundryFacility {
     private final Object kioskLock  = new Object();
 
     private final SimulationMetrics metrics;
+    private final OwnerArrivalEvent ownerArrivalEvent;
+    private volatile boolean kiosksDisabled = false;
 
     public LaundryFacility(SimulationMetrics metrics) {
         this.metrics = metrics;
+        this.ownerArrivalEvent = new OwnerArrivalEvent(() -> this.kiosksDisabled = false);
         java.util.Arrays.fill(washerAvailable, true);
         java.util.Arrays.fill(dryerAvailable, true);
         java.util.Arrays.fill(kioskAvailable, true);
+    }
+
+    public void disableKiosks() {
+        this.kiosksDisabled = true;
+        LaundryLogger.log("SYSTEM", "Both payment kiosks have failed! Outage causing congestion...");
     }
 
     // --- Washer operations ---
@@ -64,6 +72,9 @@ public class LaundryFacility {
 
     // --- Kiosk operations ---
     public int acquireKiosk() throws InterruptedException {
+        if (kiosksDisabled) {
+            ownerArrivalEvent.customerWaiting();
+        }
         kiosks.acquire();
         int id = claimResource(kioskAvailable, kioskLock);
         return id;

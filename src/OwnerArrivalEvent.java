@@ -18,20 +18,49 @@ public class OwnerArrivalEvent {
     private final AtomicInteger waitingCustomers = new AtomicInteger(0);
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition ownerArrived = lock.newCondition();
+    private final Runnable onOwnerArrival;
+    private boolean ownerHasArrived = false;
 
-    public void customerWaiting() {
-        // TODO: Increment waitingCustomers
-        // TODO: If threshold reached → triggerOwnerArrival()
-        // TODO: Otherwise → block this thread until owner arrives
+    public OwnerArrivalEvent() {
+        this(null);
+    }
+
+    public OwnerArrivalEvent(Runnable onOwnerArrival) {
+        this.onOwnerArrival = onOwnerArrival;
+    }
+
+    public void customerWaiting() throws InterruptedException {
+        lock.lock();
+        try {
+            if (ownerHasArrived) {
+                return;
+            }
+            int count = waitingCustomers.incrementAndGet();
+            LaundryLogger.log("QUEUE", "Payment kiosk outage! Customer queued for owner (" + count + "/" + QUEUE_THRESHOLD + ")");
+            if (count >= QUEUE_THRESHOLD) {
+                triggerOwnerArrival();
+            } else {
+                while (!ownerHasArrived) {
+                    ownerArrived.await();
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
     }
 
     private void triggerOwnerArrival() {
-        // TODO: Log "Owner has arrived! Resolving congestion for 30 customers."
-        // TODO: Unblock all waiting threads via ownerArrived.signalAll()
-        // TODO: Reset counter
+        ownerHasArrived = true;
+        LaundryLogger.log("OWNER", "Owner has arrived! Resolving congestion for 30 customers.");
+        if (onOwnerArrival != null) {
+            onOwnerArrival.run();
+        }
+        ownerArrived.signalAll();
+        waitingCustomers.set(0);
     }
 
     public void customerResolved() {
-        // TODO: Decrement counter, any cleanup
+        waitingCustomers.decrementAndGet();
     }
 }
+
